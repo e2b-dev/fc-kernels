@@ -73,8 +73,17 @@ resource "google_storage_bucket" "development_bucket" {
   name     = "${var.gcp_project_id}-fc-kernels-development"
 }
 
+resource "google_storage_bucket_iam_binding" "org_read_access" {
+  bucket = google_storage_bucket.development_bucket.name
+  role   = "roles/storage.objectViewer"
+
+  members = [
+    "domain:e2b.dev"
+  ]
+}
+
 resource "google_storage_bucket_iam_member" "fc_kernels_development_bucket_iam" {
-  bucket = var.gcs_bucket_name
+  bucket = google_storage_bucket.development_bucket.name
   role   = "roles/storage.objectUser"
   member = "serviceAccount:${google_service_account.fc_kernels.email}"
 }
