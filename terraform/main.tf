@@ -117,16 +117,15 @@ resource "github_actions_secret" "service_account_email_secret" {
   plaintext_value = google_service_account.fc_kernels.email
 }
 
-
-resource "github_actions_secret" "gcs_bucket_name" {
-  repository      = var.github_repository
-  secret_name     = "GCP_BUCKET_NAME"
-  plaintext_value = var.gcs_bucket_name
+resource "github_actions_variable" "gcs_bucket_name" {
+  repository    = var.github_repository
+  value         = var.gcs_bucket_name
+  variable_name = "GCP_BUCKET_NAME"
 }
 
-resource "github_actions_secret" "gcs_dev_bucket_name" {
-  repository      = var.github_repository
-  secret_name     = "GCP_DEV_BUCKET_NAME"
-  plaintext_value = google_storage_bucket.development_bucket.name
+resource "github_actions_variable" "gcs_dev_bucket_name" {
+  repository    = var.github_repository
+  variable_name = "GCP_DEV_BUCKET_NAME"
+  value         = google_storage_bucket.development_bucket.name
 }
 
