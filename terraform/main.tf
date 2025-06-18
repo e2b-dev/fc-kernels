@@ -62,8 +62,28 @@ resource "google_service_account" "fc_kernels" {
   display_name = "Service account for ${var.github_repository} FC Kernels"
 }
 
-resource "google_storage_bucket_iam_member" "fc_template_bucket_iam" {
+resource "google_storage_bucket_iam_member" "fc_kernels_bucket_iam" {
   bucket = var.gcs_bucket_name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${google_service_account.fc_kernels.email}"
+}
+
+resource "google_storage_bucket" "development_bucket" {
+  location = var.gcp_region
+  name     = "${var.gcp_project_id}-fc-kernels-development"
+}
+
+resource "google_storage_bucket_iam_binding" "org_read_access" {
+  bucket = google_storage_bucket.development_bucket.name
+  role   = "roles/storage.objectViewer"
+
+  members = [
+    "domain:e2b.dev"
+  ]
+}
+
+resource "google_storage_bucket_iam_member" "fc_kernels_development_bucket_iam" {
+  bucket = google_storage_bucket.development_bucket.name
   role   = "roles/storage.objectUser"
   member = "serviceAccount:${google_service_account.fc_kernels.email}"
 }
@@ -97,10 +117,15 @@ resource "github_actions_secret" "service_account_email_secret" {
   plaintext_value = google_service_account.fc_kernels.email
 }
 
+resource "github_actions_variable" "gcs_bucket_name" {
+  repository    = var.github_repository
+  value         = var.gcs_bucket_name
+  variable_name = "GCP_BUCKET_NAME"
+}
 
-resource "github_actions_secret" "gcs_bucket_name" {
-  repository      = var.github_repository
-  secret_name     = "GCP_BUCKET_NAME"
-  plaintext_value = var.gcs_bucket_name
+resource "github_actions_variable" "gcs_dev_bucket_name" {
+  repository    = var.github_repository
+  variable_name = "GCP_DEV_BUCKET_NAME"
+  value         = google_storage_bucket.development_bucket.name
 }
 

@@ -2,7 +2,8 @@
 
 tf_vars := TF_VAR_gcp_project_id=$(GCP_PROJECT_ID) \
 	TF_VAR_prefix=$(PREFIX) \
-	TF_VAR_terraform_state_bucket=$(TERRAFORM_STATE_BUCKET)
+	TF_VAR_terraform_state_bucket=$(TERRAFORM_STATE_BUCKET) \
+	TF_VAR_gcp_region=$(GCP_REGION) \
 
 
 .PHONY: init
