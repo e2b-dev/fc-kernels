@@ -1,0 +1,31 @@
+name: FC Kernels
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish:
+    name: Upload kernels
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Service Account
+        uses: google-github-actions/auth@v1
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Build kernels
+        run: make build
+
+      - name: Upload kernels
+        uses: "google-github-actions/upload-cloud-storage@v1"
+        with:
+          path: "./builds"
+          destination: ${{ secrets.GCP_BUCKET_NAME }}/fc-kernels
+          gzip: false
+          parent: false

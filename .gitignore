@@ -1,0 +1,5 @@
+builds/
+linux/
+.env
+.terraform
+.tfplan
