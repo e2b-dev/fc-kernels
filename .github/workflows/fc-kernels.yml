@@ -25,6 +25,16 @@ jobs:
           prerelease: false
           draft: false
 
+      - name: Get next version
+        id: get-version
+        run: |
+          version=v0.0.0
+          result=$(echo ${version} | awk -F. -v OFS=. '{$NF += 1 ; print}')
+          echo "{version}={$result}" >> $GITHUB_OUTPUT
+
+      - name: Test next version
+        run: echo "Next version is ${{ steps.get-version.outputs.version }}"
+
       - name: Setup Service Account
         uses: google-github-actions/auth@v1
         with:
@@ -51,19 +61,12 @@ jobs:
           gzip: false
           parent: false
 
-      - name: Get next version
-        id: get-version
-        run: |
-          version=v0.0.0
-          result=$(echo ${version} | awk -F. -v OFS=. '{$NF += 1 ; print}')
-          echo "{version}={$result}" >> $GITHUB_OUTPUT
-
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:
           name: Kernels ${{ steps.get-version.outputs.version }}
           commit: ${{ github.sha }}
-          tag: ${{ steps.last_release.outputs.get-version }}
+          tag: ${{ steps.get-version.outputs.get-version }}
           generateReleaseNotes: true
 
       - name: Upload Release Asset
