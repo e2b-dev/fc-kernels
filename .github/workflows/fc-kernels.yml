@@ -30,7 +30,7 @@ jobs:
         run: |
           version=v0.0.0
           result=$(echo ${version} | awk -F. -v OFS=. '{$NF += 1 ; print}')
-          echo "{version}={$result}" >> $GITHUB_OUTPUT
+          echo "version=$result" >> $GITHUB_OUTPUT
 
       - name: Test next version
         run: echo "Next version is ${{ steps.get-version.outputs.version }}"
