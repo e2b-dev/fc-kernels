@@ -23,7 +23,7 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
       - name: Build kernels
-        run: make build
+        run: sudo make build
 
       - name: Upload kernels
         uses: "google-github-actions/upload-cloud-storage@v1"
