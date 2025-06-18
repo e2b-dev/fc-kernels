@@ -23,21 +23,19 @@ jobs:
       - name: Build kernels
         run: sudo make build
 
-      - name: Set bucket based on branch
-        id: set-bucket
-        run: |
-          if [ "${{ github.ref_name }}" = "main" ]; then
-            echo "DESTINATION=${{ vars.GCP_BUCKET_NAME }}/kernels" >> $GITHUB_OUTPUT
-          else
-            echo "DESTINATION=${{ vars.GCP_DEV_BUCKET_NAME }}/${{ github.ref_name }}" >> $GITHUB_OUTPUT
-            echo "You can copy the built kernels by running the following command in your infra repo:"
-            echo "gsutil cp -r builds gs://${{ vars.GCP_DEV_BUCKET_NAME }}/${{ github.ref_name }}/* gs://$(GCP_PROJECT_ID)-fc-kernels/"
-          fi
-
       - name: Upload kernels
+        if: github.ref_name == 'main'
         uses: "google-github-actions/upload-cloud-storage@v1"
         with:
           path: "./builds"
-          destination: ${{ steps.set-bucket.outputs.DESTINATION }}/kernels
+          destination: ${{ vars.GCP_BUCKET_NAME }}/kernels
           gzip: false
           parent: false
+
+      - name: Upload kernels as artifact
+        if: github.ref_name != 'main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernels-${{ github.run_id }}
+          path: ./builds
+          retention-days: 7

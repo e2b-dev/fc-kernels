@@ -22,6 +22,9 @@ This project automates the building of custom Linux kernels for Firecracker micr
    ```
    The built kernels will be placed in `builds/vmlinux-<version>/vmlinux.bin`.
 
+## Development Workflow
+  - On every push, GitHub Actions will automatically build the kernels and save it as an artifact.
+
 ## License
 
 This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details. 
