@@ -15,15 +15,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-#      - name: Get the last release
-#        id: last_release
-#        uses: cardinalby/git-get-release-action@v1
-#        env:
-#          GITHUB_TOKEN: ${{ github.token }}
-#        with:
-#          latest: true
-#          prerelease: false
-#          draft: false
+      - name: Get the last release
+        id: last_release
+        uses: cardinalby/git-get-release-action@v1
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          latest: true
+          prerelease: false
+          draft: false
 
       - name: Setup Service Account
         uses: google-github-actions/auth@v1
@@ -56,13 +56,14 @@ jobs:
         run: |
           version=v0.0.0
           result=$(echo ${version} | awk -F. -v OFS=. '{$NF += 1 ; print}')
-          echo "::set-output name=version::$result"
+          echo "{version}={$result}" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:
           name: Kernels ${{ steps.get-version.outputs.version }}
           commit: ${{ github.sha }}
+          tag: ${{ steps.last_release.outputs.get-version }}
           generateReleaseNotes: true
 
       - name: Upload Release Asset
