@@ -5,6 +5,7 @@ on:
 
 permissions:
   id-token: write
+  contents: write
 
 jobs:
   publish:
@@ -12,7 +13,17 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+
+#      - name: Get the last release
+#        id: last_release
+#        uses: cardinalby/git-get-release-action@v1
+#        env:
+#          GITHUB_TOKEN: ${{ github.token }}
+#        with:
+#          latest: true
+#          prerelease: false
+#          draft: false
 
       - name: Setup Service Account
         uses: google-github-actions/auth@v1
@@ -23,6 +34,14 @@ jobs:
       - name: Build kernels
         run: sudo make build
 
+      - name: Upload kernels as artifact
+        if: github.ref_name != 'main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernels-${{ github.run_id }}
+          path: ./builds
+          retention-days: 7
+
       - name: Upload kernels
         if: github.ref_name == 'main'
         uses: "google-github-actions/upload-cloud-storage@v1"
@@ -32,10 +51,23 @@ jobs:
           gzip: false
           parent: false
 
-      - name: Upload kernels as artifact
-        if: github.ref_name != 'main'
-        uses: actions/upload-artifact@v4
+      - name: Get next version
+        id: get-version
+        run: |
+          version=v0.0.0
+          result=$(echo ${version} | awk -F. -v OFS=. '{$NF += 1 ; print}')
+          echo "::set-output name=version::$result"
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
         with:
-          name: kernels-${{ github.run_id }}
-          path: ./builds
-          retention-days: 7
+          name: Kernels ${{ steps.get-version.outputs.version }}
+          commit: ${{ github.sha }}
+          generateReleaseNotes: true
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: "./builds/*"
