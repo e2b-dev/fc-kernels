@@ -29,6 +29,6 @@ jobs:
         uses: "google-github-actions/upload-cloud-storage@v1"
         with:
           path: "./builds"
-          destination: ${{ secrets.GCP_BUCKET_NAME }}/fc-kernels
+          destination: ${{ secrets.GCP_BUCKET_NAME }}/kernels
           gzip: false
           parent: false
