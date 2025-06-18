@@ -68,26 +68,6 @@ resource "google_storage_bucket_iam_member" "fc_kernels_bucket_iam" {
   member = "serviceAccount:${google_service_account.fc_kernels.email}"
 }
 
-resource "google_storage_bucket" "development_bucket" {
-  location = var.gcp_region
-  name     = "${var.gcp_project_id}-fc-kernels-development"
-}
-
-resource "google_storage_bucket_iam_binding" "org_read_access" {
-  bucket = google_storage_bucket.development_bucket.name
-  role   = "roles/storage.objectViewer"
-
-  members = [
-    "domain:e2b.dev"
-  ]
-}
-
-resource "google_storage_bucket_iam_member" "fc_kernels_development_bucket_iam" {
-  bucket = google_storage_bucket.development_bucket.name
-  role   = "roles/storage.objectUser"
-  member = "serviceAccount:${google_service_account.fc_kernels.email}"
-}
-
 resource "google_service_account_iam_member" "gha_service_account_wif_tokencreator_iam_member" {
   service_account_id = google_service_account.fc_kernels.name
   role               = "roles/iam.workloadIdentityUser"
@@ -122,10 +102,3 @@ resource "github_actions_variable" "gcs_bucket_name" {
   value         = var.gcs_bucket_name
   variable_name = "GCP_BUCKET_NAME"
 }
-
-resource "github_actions_variable" "gcs_dev_bucket_name" {
-  repository    = var.github_repository
-  variable_name = "GCP_DEV_BUCKET_NAME"
-  value         = google_storage_bucket.development_bucket.name
-}
-
