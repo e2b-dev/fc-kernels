@@ -15,6 +15,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - uses: actions/create-github-app-token@v1
+        id: app-token
+        with:
+          app-id: ${{ vars.VERSION_BUMPER_APPID }}
+          private-key: ${{ secrets.VERSION_BUMPER_SECRET }}
+
       - name: Get the last release
         id: last_release
         uses: cardinalby/git-get-release-action@v1
@@ -61,17 +67,21 @@ jobs:
           gzip: false
           parent: false
 
-      - name: Create GitHub Release
-        uses: ncipollo/release-action@v1
-        with:
-          name: Kernels ${{ steps.get-version.outputs.version }}
-          commit: ${{ github.sha }}
-          tag: ${{ steps.get-version.outputs.version }}
-          generateReleaseNotes: true
+      - name: Create Git tag
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag ${{ steps.get-version.outputs.version }}
+          git push origin ${{ steps.get-version.outputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          name: Kernels ${{ steps.get-version.outputs.version }}
+          tag_name: ${{ steps.get-version.outputs.version }}
           files: "./builds/*"
+      
