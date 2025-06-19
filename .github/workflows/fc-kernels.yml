@@ -34,7 +34,7 @@ jobs:
       - name: Get next version
         id: get-version
         run: |
-          version=v0.0.0
+          version=${{ steps.last_release.outputs.tag_name }}
           result=$(echo ${version} | awk -F. -v OFS=. '{$NF += 1 ; print}')
           echo "version=$result" >> $GITHUB_OUTPUT
 
