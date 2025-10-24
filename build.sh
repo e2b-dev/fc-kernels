@@ -34,6 +34,34 @@ function build_version {
   echo "Checking out repo for kernel at version: $version"
   git checkout "$(get_tag "$version")"
 
+  echo "Applying debug FPU instrumentation"
+  patch -p1 <<'EOF' > /dev/null
+*** arch/x86/kernel/fpu/xstate.c
+@@
+ struct xregs_state *xsave = &fpstate->regs.xsave;
+-	unsigned int offset, size;
++	unsigned int offset, size;
+@@
+-	if (copy_from_buffer(&hdr, offset, sizeof(hdr), kbuf, ubuf))
+-		return -EFAULT;
++	if (copy_from_buffer(&hdr, offset, sizeof(hdr), kbuf, ubuf))
++		return -EFAULT;
++
++	pr_info("fpu: copy_uabi_to_xstate hdr.xfeatures=%#llx hdr.xcomp_bv=%#llx fpstate->header=%#llx xcr0=%#llx\n",
++		hdr.xfeatures, hdr.xcomp_bv, fpstate->regs.xsave.header.xfeatures,
++		this_cpu_read(x86_xcr0));
+*** arch/x86/kernel/fpu/core.c
+@@
+-void restore_fpregs_from_fpstate(struct fpstate *fpstate, u64 mask)
+-{
++void restore_fpregs_from_fpstate(struct fpstate *fpstate, u64 mask)
++{
++	pr_info("fpu: restore_fpregs_from_fpstate mask=%#llx fpstate->header=%#llx xcr0=%#llx\n",
++		mask, fpstate->regs.xsave.header.xfeatures,
++		this_cpu_read(x86_xcr0));
+***
+EOF
+
   echo "Building kernel version: $version"
   make olddefconfig
   make vmlinux -j "$(nproc)"
