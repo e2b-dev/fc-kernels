@@ -4,8 +4,12 @@
 set -euo pipefail
 
 function install_dependencies {
-    apt update
-    apt install -y bc flex bison gcc make libelf-dev libssl-dev squashfs-tools busybox-static tree cpio curl patch
+    if command -v apt >/dev/null 2>&1; then
+        apt update
+        apt install -y bc flex bison gcc make libelf-dev libssl-dev squashfs-tools busybox-static tree cpio curl patch
+    else
+        echo "apt not available; skipping dependency installation"
+    fi
 }
 
 # From above mentioned script
@@ -49,8 +53,12 @@ function build_version {
 +
 +	pr_info("fpu: copy_uabi_to_xstate hdr.xfeatures=%#llx hdr.xcomp_bv=%#llx fpstate->header=%#llx xcr0=%#llx\n",
 +		hdr.xfeatures, hdr.xcomp_bv, fpstate->regs.xsave.header.xfeatures,
-+		this_cpu_read(x86_xcr0));
++		xgetbv(XCR_XFEATURE_ENABLED_MASK));
 *** arch/x86/kernel/fpu/core.c
+@@
+-#include <asm/irq_regs.h>
++#include <asm/irq_regs.h>
++#include <asm/fpu/xcr.h>
 @@
 -void restore_fpregs_from_fpstate(struct fpstate *fpstate, u64 mask)
 -{
@@ -58,7 +66,7 @@ function build_version {
 +{
 +	pr_info("fpu: restore_fpregs_from_fpstate mask=%#llx fpstate->header=%#llx xcr0=%#llx\n",
 +		mask, fpstate->regs.xsave.header.xfeatures,
-+		this_cpu_read(x86_xcr0));
++		xgetbv(XCR_XFEATURE_ENABLED_MASK));
 ***
 EOF
 
