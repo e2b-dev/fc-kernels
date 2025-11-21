@@ -29,7 +29,7 @@ This project automates the building of custom Linux kernels for Firecracker micr
 _Note: these steps should give you new kernel on your self-hosted E2B using https://github.com/e2b-dev/infra_
 
   - Copy the kernel build in your project's object storage under `e2b-*-fc-kernels`
-  - In `infra/packages/shared/pkg/schema/build.go` update `DefaultKernelVersion`
+  - In [packages/shared/pkg/schema/build.go](https://github.com/e2b-dev/infra/blob/main/packages/shared/pkg/schema/build.go) update `DefaultKernelVersion`
   - Build and deploy template manager
   
 ## License
