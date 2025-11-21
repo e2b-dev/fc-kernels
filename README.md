@@ -26,10 +26,10 @@ This project automates the building of custom Linux kernels for Firecracker micr
   - On every push, GitHub Actions will automatically build the kernels and save it as an artifact.
 
 ## New Kernel in E2B's infra
-  - Note: these steps should give you new kernel on your self-hosted E2B using https://github.com/e2b-dev/infra
+  - _Note: these steps should give you new kernel on your self-hosted E2B using https://github.com/e2b-dev/infra_
 
-  - Copy the kernel build in your project's object storage under e2b-*-fc-kernels 
-  - In infra/packages/shared/pkg/schema/build.go  update DefaultKernelVersion
+  - Copy the kernel build in your project's object storage under `e2b-*-fc-kernels `
+  - In `infra/packages/shared/pkg/schema/build.go` update `DefaultKernelVersion`
   - Build and deploy template manager
   
 ## License
