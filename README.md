@@ -30,7 +30,7 @@ _Note: these steps should give you new kernel on your self-hosted E2B using http
 
   - Copy the kernel build in your project's object storage under `e2b-*-fc-kernels`
   - In [packages/shared/pkg/schema/build.go](https://github.com/e2b-dev/infra/blob/main/packages/shared/pkg/schema/build.go) update `DefaultKernelVersion`
-  - Build and deploy template manager
+  - Build and deploy `template-manager` and `api`
   
 ## License
 
