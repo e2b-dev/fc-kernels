@@ -77,6 +77,17 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Prepare release assets
+        if: github.ref_name == 'main'
+        run: |
+          mkdir -p release-assets
+          for dir in ./builds/*/; do
+            name=$(basename "$dir")
+            cp "$dir/vmlinux.bin" "release-assets/vmlinux-${name}.bin"
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload Release Asset
         if: github.ref_name == 'main'
         uses: softprops/action-gh-release@v2
@@ -85,5 +96,5 @@ jobs:
         with:
           name: Kernels ${{ steps.get-version.outputs.version }}
           tag_name: ${{ steps.get-version.outputs.version }}
-          files: "./builds/**"
+          files: "./release-assets/*"
       
