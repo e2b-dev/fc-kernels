@@ -83,7 +83,7 @@ jobs:
           mkdir -p release-assets
           for dir in ./builds/*/; do
             name=$(basename "$dir")
-            cp "$dir/vmlinux.bin" "release-assets/vmlinux-${name}.bin"
+            cp "$dir/vmlinux.bin" "release-assets/${name}.bin"
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
