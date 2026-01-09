@@ -3,9 +3,22 @@
 
 set -euo pipefail
 
+# Cross-compilation settings
+CROSS_COMPILE_X86="${CROSS_COMPILE_X86:-}"
+HOST_ARCH=$(uname -m)
+TARGET_ARCH="x86_64"
+CROSS_COMPILE_PREFIX="${TARGET_ARCH}-linux-gnu-"
+
 function install_dependencies {
     apt update
-    apt install -y bc flex bison gcc make libelf-dev libssl-dev squashfs-tools busybox-static tree cpio curl patch
+    local packages="bc flex bison gcc make libelf-dev libssl-dev squashfs-tools busybox-static tree cpio curl patch git"
+    
+    # Add cross-compilation toolchain if needed (use gcc-12 to avoid C23 issues with newer GCC)
+    if [[ "$CROSS_COMPILE_X86" == "1" ]]; then
+        packages="$packages gcc-12-x86-64-linux-gnu"
+    fi
+    
+    apt install -y $packages
 }
 
 # From above mentioned script
@@ -32,11 +45,24 @@ function build_version {
   cp ../configs/"${version}.config" .config
 
   echo "Checking out repo for kernel at version: $version"
+  git reset --hard
+  git clean -fdx
   git checkout "$(get_tag "$version")"
 
+  # Clean build artifacts from previous build
+  make mrproper || true
+
+  # Set up cross-compilation if needed
+  local make_opts=""
+  if [[ "$CROSS_COMPILE_X86" == "1" ]]; then
+    echo "Cross-compiling for $TARGET_ARCH on $HOST_ARCH"
+    # Use gcc-12 to avoid C23 issues with newer GCC (bool/true/false keywords)
+    make_opts="ARCH=$TARGET_ARCH CROSS_COMPILE=$CROSS_COMPILE_PREFIX CC=${CROSS_COMPILE_PREFIX}gcc-12"
+  fi
+
   echo "Building kernel version: $version"
-  make olddefconfig
-  make vmlinux -j "$(nproc)"
+  make $make_opts olddefconfig
+  make $make_opts vmlinux -j "$(nproc)"
 
   echo "Copying finished build to builds directory"
   mkdir -p "../builds/vmlinux-${version}"
@@ -49,8 +75,6 @@ install_dependencies
 
 [ -d linux ] || git clone --no-checkout --filter=tree:0 https://github.com/amazonlinux/linux
 pushd linux
-
-make distclean || true
 
 grep -v '^ *#' <../kernel_versions.txt | while IFS= read -r version; do
   build_version "$version"
