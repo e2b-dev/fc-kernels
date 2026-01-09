@@ -2,6 +2,8 @@ name: FC Kernels
 
 on:
   push:
+    branches:
+      - main
 
 permissions:
   id-token: write
