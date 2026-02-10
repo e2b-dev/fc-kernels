@@ -3,20 +3,22 @@
 
 set -euo pipefail
 
+# TARGET_ARCH: x86_64 (default) or arm64
+TARGET_ARCH="${TARGET_ARCH:-x86_64}"
+HOST_ARCH="$(uname -m)"
+
 function install_dependencies {
     apt update
-    apt install -y bc flex bison gcc make libelf-dev libssl-dev squashfs-tools busybox-static tree cpio curl patch
+    local packages="bc flex bison gcc make libelf-dev libssl-dev squashfs-tools busybox-static tree cpio curl patch"
+
+    if [[ "$TARGET_ARCH" == "arm64" && "$HOST_ARCH" != "aarch64" ]]; then
+        packages="$packages gcc-aarch64-linux-gnu"
+    fi
+
+    apt install -y $packages
 }
 
-# From above mentioned script
 # prints the git tag corresponding to the newest and best matching the provided kernel version $1
-# this means that if a microvm kernel exists, the tag returned will be of the form
-#
-#    microvm-kernel-$1.<patch number>.amzn2[023]
-#
-# otherwise choose the newest tag matching
-#
-#    kernel-$1.<patch number>.amzn2[023]
 function get_tag {
     local KERNEL_VERSION=$1
 
@@ -27,23 +29,40 @@ function get_tag {
 
 function build_version {
   local version=$1
-  echo "Starting build for kernel version: $version"
+  echo "Starting build for kernel version: $version (${TARGET_ARCH})"
 
-  cp ../configs/"${version}.config" .config
+  # Configs live in configs/{arch}/
+  cp ../configs/"${TARGET_ARCH}/${version}.config" .config
 
   echo "Checking out repo for kernel at version: $version"
   git checkout "$(get_tag "$version")"
 
+  # Set up cross-compilation if building arm64 on x86_64
+  local make_opts=""
+  if [[ "$TARGET_ARCH" == "arm64" ]]; then
+    if [[ "$HOST_ARCH" != "aarch64" ]]; then
+      make_opts="ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-"
+    else
+      make_opts="ARCH=arm64"
+    fi
+  fi
+
   echo "Building kernel version: $version"
-  make olddefconfig
-  make vmlinux -j "$(nproc)"
+  make $make_opts olddefconfig
+  make $make_opts vmlinux -j "$(nproc)"
 
   echo "Copying finished build to builds directory"
-  mkdir -p "../builds/vmlinux-${version}"
-  cp vmlinux "../builds/vmlinux-${version}/vmlinux.bin"
+  # Always output to {arch}/ subdirectory
+  mkdir -p "../builds/vmlinux-${version}/${TARGET_ARCH}"
+  cp vmlinux "../builds/vmlinux-${version}/${TARGET_ARCH}/vmlinux.bin"
+
+  # x86_64: also copy to legacy path (no arch subdir) for backwards compat
+  if [[ "$TARGET_ARCH" == "x86_64" ]]; then
+    cp vmlinux "../builds/vmlinux-${version}/vmlinux.bin"
+  fi
 }
 
-echo "Cloning the linux kernel repository"
+echo "Building kernels for ${TARGET_ARCH}"
 
 install_dependencies
 

@@ -8,8 +8,30 @@ permissions:
   contents: write
 
 jobs:
+  build:
+    name: Build kernels (${{ matrix.arch }})
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        arch: [x86_64, arm64]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build kernels
+        run: sudo TARGET_ARCH=${{ matrix.arch }} make build
+
+      - name: Upload kernels as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernels-${{ matrix.arch }}-${{ github.run_id }}
+          path: ./builds
+          retention-days: 7
+
   publish:
-    name: Upload kernels
+    name: Publish kernels
+    needs: build
+    if: github.ref_name == 'main'
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
@@ -38,8 +60,11 @@ jobs:
           result=$(echo ${version} | awk -F. -v OFS=. '{$NF += 1 ; print}')
           echo "version=$result" >> $GITHUB_OUTPUT
 
-      - name: Test next version
-        run: echo "Next version is ${{ steps.get-version.outputs.version }}"
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./builds
+          merge-multiple: true
 
       - name: Setup Service Account
         uses: google-github-actions/auth@v1
@@ -47,19 +72,7 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
-      - name: Build kernels
-        run: sudo make build
-
-      - name: Upload kernels as artifact
-        if: github.ref_name != 'main'
-        uses: actions/upload-artifact@v4
-        with:
-          name: kernels-${{ github.run_id }}
-          path: ./builds
-          retention-days: 7
-
-      - name: Upload kernels
-        if: github.ref_name == 'main'
+      - name: Upload kernels to GCS
         uses: "google-github-actions/upload-cloud-storage@v1"
         with:
           path: "./builds"
@@ -68,7 +81,6 @@ jobs:
           parent: false
 
       - name: Create Git tag
-        if: github.ref_name == 'main'
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
@@ -78,18 +90,25 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Prepare release assets
-        if: github.ref_name == 'main'
         run: |
           mkdir -p release-assets
           for dir in ./builds/*/; do
             name=$(basename "$dir")
-            cp "$dir/vmlinux.bin" "release-assets/${name}.bin"
+            # Legacy x86_64 (no arch subdir)
+            if [ -f "$dir/vmlinux.bin" ]; then
+              cp "$dir/vmlinux.bin" "release-assets/${name}.bin"
+            fi
+            # Per-arch binaries
+            for archdir in "$dir"/*/; do
+              [ -d "$archdir" ] || continue
+              arch=$(basename "$archdir")
+              if [ -f "$archdir/vmlinux.bin" ]; then
+                cp "$archdir/vmlinux.bin" "release-assets/${name}-${arch}.bin"
+              fi
+            done
           done
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Release Asset
-        if: github.ref_name == 'main'
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -97,4 +116,3 @@ jobs:
           name: Kernels ${{ steps.get-version.outputs.version }}
           tag_name: ${{ steps.get-version.outputs.version }}
           files: "./release-assets/*"
-      
