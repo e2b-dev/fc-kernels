@@ -49,13 +49,22 @@ function build_version {
 
   echo "Building kernel version: $version"
   make $make_opts olddefconfig
-  make $make_opts vmlinux -j "$(nproc)"
+  
+  if [[ "$TARGET_ARCH" == "arm64" ]]; then
+    make $make_opts Image -j "$(nproc)"
+  else
+    make $make_opts vmlinux -j "$(nproc)"
+  fi
 
   echo "Copying finished build to builds directory"
   # Always output to {arch}/ subdirectory
   mkdir -p "../builds/vmlinux-${version}/${TARGET_ARCH}"
-  cp vmlinux "../builds/vmlinux-${version}/${TARGET_ARCH}/vmlinux.bin"
-
+  if [[ "$TARGET_ARCH" == "arm64" ]]; then
+    cp arch/arm64/boot/Image "../builds/vmlinux-${version}/${TARGET_ARCH}/vmlinux.bin"
+  else
+    cp vmlinux "../builds/vmlinux-${version}/${TARGET_ARCH}/vmlinux.bin"
+  fi
+  
   # x86_64: also copy to legacy path (no arch subdir) for backwards compat
   if [[ "$TARGET_ARCH" == "x86_64" ]]; then
     cp vmlinux "../builds/vmlinux-${version}/vmlinux.bin"
