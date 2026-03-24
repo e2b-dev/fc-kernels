@@ -23,10 +23,10 @@ function get_tag {
     local KERNEL_VERSION="${1}"
 
     # list all tags from newest to oldest
-    (
+    {
         git --no-pager tag -l --sort=-creatordate | grep "microvm-kernel-${KERNEL_VERSION}-.*\.amzn2" \
         || git --no-pager tag -l --sort=-creatordate | grep "kernel-${KERNEL_VERSION}-.*\.amzn2"
-    ) | head -n1
+    } | head -n1
 }
 
 function build_version {
