@@ -8,14 +8,14 @@ TARGET_ARCH="${TARGET_ARCH:-x86_64}"
 HOST_ARCH="$(uname -m)"
 
 function install_dependencies {
+    local packages=(
+        bc bison busybox-static cpio curl flex gcc libelf-dev libssl-dev make patch squashfs-tools tree
+    )
+
+    [[ "${TARGET_ARCH}" == "arm64" && "${HOST_ARCH}" != "aarch64" ]] && packages+=( gcc-aarch64-linux-gnu )
+
     apt update
-    local packages="bc flex bison gcc make libelf-dev libssl-dev squashfs-tools busybox-static tree cpio curl patch"
-
-    if [[ "$TARGET_ARCH" == "arm64" && "$HOST_ARCH" != "aarch64" ]]; then
-        packages="$packages gcc-aarch64-linux-gnu"
-    fi
-
-    apt install -y $packages
+    apt install -y "${packages[@]}"
 }
 
 # prints the git tag corresponding to the newest and best matching the provided kernel version $1
