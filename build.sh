@@ -9,7 +9,7 @@ HOST_ARCH="$(uname -m)"
 
 function install_dependencies {
     local packages=(
-        bc flex bison gcc make libelf-dev libssl-dev squashfs-tools busybox-static tree cpio curl patch
+        bc bison busybox-static cpio curl flex gcc libelf-dev libssl-dev make patch squashfs-tools tree
     )
 
     [[ "${TARGET_ARCH}" == "arm64" && "${HOST_ARCH}" != "aarch64" ]] && packages+=( gcc-aarch64-linux-gnu )
