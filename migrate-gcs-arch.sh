@@ -72,7 +72,7 @@ else
     [[ -z "$src" ]] && continue
     [[ "$src" == */ ]] && continue
 
-    dst="${src/\/x86_64\//\/amd64\/}"
+    dst="${src/\/x86_64\///amd64/}"
 
     if [[ "$APPLY" == true ]]; then
       echo "  COPY  $src"
