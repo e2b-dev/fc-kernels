@@ -20,10 +20,14 @@ This project automates the building of custom Linux kernels for Firecracker micr
    # or directly
    ./build.sh
    ```
-   The built kernels will be placed in `builds/vmlinux-<version>/vmlinux.bin`.
+   The built kernels will be placed in `builds/vmlinux-<version>/<arch>/vmlinux.bin` where `<arch>` is `amd64` or `arm64` (Go/OCI convention). For x86_64 backward compatibility, a legacy copy is also placed at `builds/vmlinux-<version>/vmlinux.bin`.
 
 ## Development Workflow
   - On every push, GitHub Actions will automatically build the kernels and save it as an artifact.
+
+## Architecture naming
+
+Output directories use Go's `runtime.GOARCH` convention (`amd64`, `arm64`) so they match the infra orchestrator's `TargetArch()` path resolution. The build-time variable `TARGET_ARCH` (`x86_64`, `arm64`) is only used internally for config paths and cross-compilation flags.
 
 ## New Kernel in E2B's infra
 _Note: these steps should give you new kernel on your self-hosted E2B using https://github.com/e2b-dev/infra_

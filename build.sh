@@ -7,6 +7,18 @@ set -euo pipefail
 TARGET_ARCH="${TARGET_ARCH:-x86_64}"
 HOST_ARCH="$(uname -m)"
 
+# Go/OCI-normalized arch name for output directory structure.
+# The infra orchestrator uses Go's runtime.GOARCH convention (amd64/arm64)
+# for path resolution, so output directories must match.
+normalize_arch() {
+  case "$1" in
+    x86_64)  echo "amd64" ;;
+    aarch64) echo "arm64" ;;
+    *)       echo "$1" ;;
+  esac
+}
+OUTPUT_ARCH="$(normalize_arch "$TARGET_ARCH")"
+
 function install_dependencies {
     local packages=(
         bc bison busybox-static cpio curl flex gcc libelf-dev libssl-dev make patch squashfs-tools tree
@@ -59,14 +71,14 @@ function build_version {
   fi
 
   echo "Copying finished build to builds directory"
-  # Always output to {arch}/ subdirectory
-  mkdir -p "../builds/vmlinux-${version}/${TARGET_ARCH}"
+  # Output to normalized arch dir (amd64/arm64) matching Go's runtime.GOARCH
+  mkdir -p "../builds/vmlinux-${version}/${OUTPUT_ARCH}"
   if [[ "$TARGET_ARCH" == "arm64" ]]; then
-    cp arch/arm64/boot/Image "../builds/vmlinux-${version}/${TARGET_ARCH}/vmlinux.bin"
+    cp arch/arm64/boot/Image "../builds/vmlinux-${version}/${OUTPUT_ARCH}/vmlinux.bin"
   else
-    cp vmlinux "../builds/vmlinux-${version}/${TARGET_ARCH}/vmlinux.bin"
+    cp vmlinux "../builds/vmlinux-${version}/${OUTPUT_ARCH}/vmlinux.bin"
   fi
-  
+
   # x86_64: also copy to legacy path (no arch subdir) for backwards compat
   if [[ "$TARGET_ARCH" == "x86_64" ]]; then
     cp vmlinux "../builds/vmlinux-${version}/vmlinux.bin"
