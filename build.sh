@@ -161,12 +161,15 @@ main() {
     local version_name="${VERSION_NAME:-$(compute_version_name "$single_version")}"
     build_version "$single_version" "$target_arch" "$version_name"
   else
-    grep -v '^ *#' <"$SCRIPT_DIR/kernel_versions.txt" | while IFS= read -r version; do
+    while IFS= read -r raw; do
+      local version="${raw%%#*}"
+      version="${version#"${version%%[![:space:]]*}"}"
+      version="${version%"${version##*[![:space:]]}"}"
       [ -z "$version" ] && continue
       local version_name
       version_name="$(compute_version_name "$version")"
       build_version "$version" "$target_arch" "$version_name"
-    done
+    done <"$SCRIPT_DIR/kernel_versions.txt"
   fi
 }
 
