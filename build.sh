@@ -102,7 +102,7 @@ build_version() {
   cp "$SCRIPT_DIR/configs/${target_arch}/${version}.config" .config
 
   echo "Checking out repo for kernel at version: $version"
-  git checkout "$(get_tag "$version")"
+  git checkout -f "$(get_tag "$version")"
 
   apply_patches "$version"
 
