@@ -51,7 +51,7 @@ def hash_inputs_for_version(version: str) -> str:
             paths.append(cfg)
     patches_dir = REPO_ROOT / "patches" / version
     if patches_dir.is_dir():
-        paths.extend(sorted(p for p in patches_dir.rglob("*") if p.is_file()))
+        paths.extend(sorted(p for p in patches_dir.glob("*.patch") if p.is_file()))
 
     if not paths:
         raise SystemExit(f"::error::No configs found for kernel version {version}")

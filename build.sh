@@ -35,9 +35,12 @@ compute_version_name() {
     [ -f "$cfg" ] && files+=("$cfg")
   done
   if [ -d "$SCRIPT_DIR/patches/$version" ]; then
-    while IFS= read -r -d '' f; do
-      files+=("$f")
-    done < <(find "$SCRIPT_DIR/patches/$version" -type f -print0 | sort -z)
+    shopt -s nullglob
+    local patches=("$SCRIPT_DIR/patches/$version"/*.patch)
+    shopt -u nullglob
+    while IFS= read -r p; do
+      [ -n "$p" ] && files+=("$p")
+    done < <(printf '%s\n' "${patches[@]}" | sort)
   fi
   if [ "${#files[@]}" -eq 0 ]; then
     echo "Error: no configs found for kernel version $version" >&2
