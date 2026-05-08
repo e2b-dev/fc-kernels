@@ -4,15 +4,12 @@
 set -euo pipefail
 
 # Usage:
-#   ./build.sh                                 # build all versions in kernel_versions.txt for $TARGET_ARCH
-#   ./build.sh <kernel_version> [arch]         # build a single version
-#   VERSION_NAME=vmlinux-<v>_<hash> ./build.sh <kernel_version> <arch>
+#   ./build.sh                            # build all versions in kernel_versions.txt for $TARGET_ARCH
+#   ./build.sh <kernel_version> [arch]    # build a single version
 #
 # arch is one of: x86_64 (default), arm64 (kernel-style names).
-# The output goes to builds/<version_name>/<output_arch>/vmlinux.bin where
+# Output: builds/vmlinux-<version>/<output_arch>/vmlinux.bin where
 # <output_arch> is the Go/OCI name (amd64/arm64) used by the orchestrator.
-# If VERSION_NAME isn't provided, it's computed deterministically from the
-# kernel version's configs and patches: vmlinux-<version>_<sha256[:7]>.
 
 HOST_ARCH="$(uname -m)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,38 +20,6 @@ normalize_arch() {
     aarch64) echo "arm64" ;;
     *)       echo "$1" ;;
   esac
-}
-
-# Returns vmlinux-<version>_<hash7>. Hash inputs: configs/{x86_64,arm64}/<v>.config
-# and any files under patches/<v>/. Must match scripts/validate.py.
-compute_version_name() {
-  local version="$1"
-  local files=()
-  for arch in x86_64 arm64; do
-    local cfg="$SCRIPT_DIR/configs/$arch/${version}.config"
-    [ -f "$cfg" ] && files+=("$cfg")
-  done
-  if [ -d "$SCRIPT_DIR/patches/$version" ]; then
-    shopt -s nullglob
-    local patches=("$SCRIPT_DIR/patches/$version"/*.patch)
-    shopt -u nullglob
-    while IFS= read -r p; do
-      [ -n "$p" ] && files+=("$p")
-    done < <(printf '%s\n' "${patches[@]}" | sort)
-  fi
-  if [ "${#files[@]}" -eq 0 ]; then
-    echo "Error: no configs found for kernel version $version" >&2
-    exit 1
-  fi
-  local h
-  h=$(
-    for f in "${files[@]}"; do
-      printf '%s\0' "${f#"$SCRIPT_DIR/"}"
-      cat "$f"
-      printf '\0'
-    done | sha256sum | awk '{print $1}' | cut -c1-7
-  )
-  echo "vmlinux-${version}_${h}"
 }
 
 install_dependencies() {
@@ -96,11 +61,10 @@ apply_patches() {
 build_version() {
   local version="$1"
   local target_arch="$2"
-  local version_name="$3"
   local output_arch
   output_arch="$(normalize_arch "$target_arch")"
 
-  echo "Starting build for kernel version: $version (${target_arch}) -> $version_name"
+  echo "Starting build for kernel version: $version (${target_arch})"
 
   cp "$SCRIPT_DIR/configs/${target_arch}/${version}.config" .config
 
@@ -128,7 +92,7 @@ build_version() {
   fi
 
   echo "Copying finished build to builds directory"
-  local out_dir="$SCRIPT_DIR/builds/${version_name}/${output_arch}"
+  local out_dir="$SCRIPT_DIR/builds/vmlinux-${version}/${output_arch}"
   mkdir -p "$out_dir"
   if [[ "$target_arch" == "arm64" ]]; then
     cp arch/arm64/boot/Image "$out_dir/vmlinux.bin"
@@ -138,7 +102,7 @@ build_version() {
 
   # x86_64: also copy to legacy path (no arch subdir) for backwards compat.
   if [[ "$target_arch" == "x86_64" ]]; then
-    cp vmlinux "$SCRIPT_DIR/builds/${version_name}/vmlinux.bin"
+    cp vmlinux "$SCRIPT_DIR/builds/vmlinux-${version}/vmlinux.bin"
   fi
 }
 
@@ -158,17 +122,14 @@ main() {
   ensure_linux_repo
 
   if [[ -n "$single_version" ]]; then
-    local version_name="${VERSION_NAME:-$(compute_version_name "$single_version")}"
-    build_version "$single_version" "$target_arch" "$version_name"
+    build_version "$single_version" "$target_arch"
   else
     while IFS= read -r raw; do
       local version="${raw%%#*}"
       version="${version#"${version%%[![:space:]]*}"}"
       version="${version%"${version##*[![:space:]]}"}"
       [ -z "$version" ] && continue
-      local version_name
-      version_name="$(compute_version_name "$version")"
-      build_version "$version" "$target_arch" "$version_name"
+      build_version "$version" "$target_arch"
     done <"$SCRIPT_DIR/kernel_versions.txt"
   fi
 }

@@ -2,77 +2,39 @@ name: Manual Build & Release
 
 on:
   workflow_dispatch:
-    inputs:
-      kernel_versions:
-        description: 'Comma-separated kernel versions to build (default: kernel_versions.txt)'
-        required: false
-        type: string
-        default: ''
-      build_amd64:
-        description: 'Build for amd64 architecture'
-        required: false
-        type: boolean
-        default: true
-      build_arm64:
-        description: 'Build for arm64 architecture'
-        required: false
-        type: boolean
-        default: true
 
 permissions:
   contents: write
   id-token: write
 
 jobs:
-  validate:
-    runs-on: ubuntu-24.04
-    outputs:
-      build_matrix: ${{ steps.validate.outputs.build_matrix }}
-      versions: ${{ steps.validate.outputs.versions }}
-      has_new_artifacts: ${{ steps.validate.outputs.has_new_artifacts }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - id: validate
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          python3 scripts/validate.py \
-            --kernel-versions "${{ inputs.kernel_versions }}" \
-            --build-amd64 "${{ inputs.build_amd64 }}" \
-            --build-arm64 "${{ inputs.build_arm64 }}"
-
   build:
-    needs: validate
-    if: needs.validate.outputs.has_new_artifacts == 'true'
+    name: Build kernels (${{ matrix.arch }})
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.validate.outputs.build_matrix) }}
+      matrix:
+        include:
+          - arch: amd64
+            target_arch: x86_64
+            runner: ubuntu-24.04
+          - arch: arm64
+            target_arch: arm64
+            runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build kernel ${{ matrix.version_name }} (${{ matrix.arch }})
-        env:
-          VERSION_NAME: ${{ matrix.version_name }}
-        run: |
-          target_arch="${{ matrix.arch }}"
-          [ "$target_arch" = "amd64" ] && target_arch="x86_64"
-          sudo VERSION_NAME="$VERSION_NAME" ./build.sh "${{ matrix.kernel_version }}" "$target_arch"
+      - name: Build kernels
+        run: sudo TARGET_ARCH=${{ matrix.target_arch }} ./build.sh
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.version_name }}-${{ matrix.arch }}
+          name: kernels-${{ matrix.arch }}
           path: ./builds
           retention-days: 7
 
   publish:
-    needs: [validate, build]
-    if: needs.validate.outputs.has_new_artifacts == 'true'
+    needs: build
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -84,108 +46,56 @@ jobs:
           path: ./builds
           merge-multiple: true
 
-      - name: Show build artifacts
-        run: find ./builds -type f | head -50
+      - name: Prepare release assets
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          for dir in ./builds/vmlinux-*/; do
+            name=$(basename "$dir")
+            [ -f "$dir/amd64/vmlinux.bin" ] && cp "$dir/amd64/vmlinux.bin" "release-assets/${name}-amd64.bin"
+            [ -f "$dir/arm64/vmlinux.bin" ] && cp "$dir/arm64/vmlinux.bin" "release-assets/${name}-arm64.bin"
+            # Legacy non-arch-suffixed asset (= amd64) for backwards compat.
+            [ -f "$dir/vmlinux.bin" ] && cp "$dir/vmlinux.bin" "release-assets/${name}.bin"
+          done
+          ls -la release-assets/
 
-      - name: Create or update releases
+      - name: Pick calver tag
+        id: tag
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSIONS: ${{ needs.validate.outputs.versions }}
+        run: |
+          set -euo pipefail
+          base="$(date -u +%Y.%m.%d)"
+          tag="$base"
+          n=1
+          while gh release view "$tag" >/dev/null 2>&1; do
+            n=$((n + 1))
+            tag="${base}.${n}"
+          done
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          echo "$VERSIONS" | jq -c '.[]' | while read -r entry; do
-            version_name=$(echo "$entry" | jq -r '.version_name')
-            kernel_version=$(echo "$entry" | jq -r '.kernel_version')
-
-            if ! gh release view "$version_name" >/dev/null 2>&1; then
-              if ! git rev-parse "refs/tags/$version_name" >/dev/null 2>&1; then
-                git tag "$version_name"
-                git push origin "$version_name"
-              fi
-              gh release create "$version_name" \
-                --title "Kernel $version_name" \
-                --notes "Linux kernel $kernel_version built from configs at ${{ github.sha }}"
-            fi
-
-            existing=$(gh release view "$version_name" --json assets -q '.assets[].name' || true)
-
-            for arch in amd64 arm64; do
-              local_path="./builds/$version_name/$arch/vmlinux.bin"
-              [ -f "$local_path" ] || continue
-
-              asset="vmlinux-${arch}.bin"
-              if echo "$existing" | grep -qx "$asset"; then
-                echo "Release $version_name: $asset exists, skipping"
-              else
-                tmp=$(mktemp -d)/$asset
-                cp "$local_path" "$tmp"
-                gh release upload "$version_name" "$tmp"
-                rm -f "$tmp"
-              fi
-
-              # Legacy non-arch-suffixed asset (amd64 only) for backwards compat.
-              if [ "$arch" = "amd64" ] && ! echo "$existing" | grep -qx "vmlinux.bin"; then
-                tmp=$(mktemp -d)/vmlinux.bin
-                cp "$local_path" "$tmp"
-                gh release upload "$version_name" "$tmp"
-                rm -f "$tmp"
-              fi
-            done
-          done
-
-  deploy:
-    needs: [validate, publish]
-    if: needs.validate.outputs.has_new_artifacts == 'true'
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
+          git tag "${{ steps.tag.outputs.tag }}"
+          git push origin "${{ steps.tag.outputs.tag }}"
+          gh release create "${{ steps.tag.outputs.tag }}" \
+            --title "Kernels ${{ steps.tag.outputs.tag }}" \
+            --notes "Built from commit ${{ github.sha }} on ${{ github.ref_name }}" \
+            ./release-assets/*
 
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
 
-      - uses: google-github-actions/setup-gcloud@v2
-
-      - name: Download release assets and upload to GCS
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GCP_BUCKET_NAME: ${{ vars.GCP_BUCKET_NAME }}
-          VERSIONS: ${{ needs.validate.outputs.versions }}
-        run: |
-          set -euo pipefail
-          echo "$VERSIONS" | jq -c '.[]' | while read -r entry; do
-            version_name=$(echo "$entry" | jq -r '.version_name')
-
-            for arch in amd64 arm64; do
-              asset="vmlinux-${arch}.bin"
-              dl_dir="./dl/$version_name/$arch"
-              mkdir -p "$dl_dir"
-              if ! gh release download "$version_name" \
-                  --repo "${{ github.repository }}" \
-                  --pattern "$asset" \
-                  --output "$dl_dir/vmlinux.bin" 2>/dev/null; then
-                continue
-              fi
-
-              gcs_path="gs://${GCP_BUCKET_NAME}/kernels/${version_name}/${arch}/vmlinux.bin"
-              if gcloud storage ls "$gcs_path" >/dev/null 2>&1; then
-                echo "GCS: $gcs_path exists, skipping"
-              else
-                gcloud storage cp "$dl_dir/vmlinux.bin" "$gcs_path"
-              fi
-
-              # Legacy non-arch path (amd64 only) for backwards compat.
-              if [ "$arch" = "amd64" ]; then
-                legacy_path="gs://${GCP_BUCKET_NAME}/kernels/${version_name}/vmlinux.bin"
-                if gcloud storage ls "$legacy_path" >/dev/null 2>&1; then
-                  echo "GCS: $legacy_path exists, skipping"
-                else
-                  gcloud storage cp "$dl_dir/vmlinux.bin" "$legacy_path"
-                fi
-              fi
-            done
-          done
+      - uses: google-github-actions/upload-cloud-storage@v2
+        with:
+          path: ./builds
+          destination: ${{ vars.GCP_BUCKET_NAME }}/kernels
+          gzip: false
+          parent: false

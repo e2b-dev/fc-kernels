@@ -4,12 +4,6 @@
 
 This project builds custom Linux kernels for Firecracker microVMs from the same kernel sources as the official Firecracker repo, using the configuration files (and optional patches) that live in this repo.
 
-Each kernel build is identified by a content hash of its inputs (configs + patches), so changing a flag or adding a patch produces a new, traceable artifact:
-
-```
-vmlinux-<kernel_version>_<sha256[:7]>
-```
-
 ## Prerequisites
 
 - Linux environment (for building kernels)
@@ -29,26 +23,27 @@ vmlinux-<kernel_version>_<sha256[:7]>
    ./build.sh 6.1.158 arm64
    ```
 
-   Output: `builds/vmlinux-<version>_<hash>/<arch>/vmlinux.bin` where `<arch>` is `amd64` or `arm64` (Go/OCI convention). For x86_64 a legacy copy is also placed at `builds/vmlinux-<version>_<hash>/vmlinux.bin`.
+   Output: `builds/vmlinux-<version>/<arch>/vmlinux.bin` where `<arch>` is `amd64` or `arm64` (Go/OCI convention). For x86_64 a legacy copy is also placed at `builds/vmlinux-<version>/vmlinux.bin`.
 
 ## Releasing
 
-1. Run the **Manual Build & Release** workflow (Actions → Manual Build & Release → Run workflow).
-2. The workflow:
-   - Computes a content hash for each kernel version from its configs and patches.
-   - Skips arches whose artifact is already present in the matching GitHub release.
-   - Builds the missing arches, creates/updates the `vmlinux-<version>_<hash>` release, uploads `vmlinux-amd64.bin` / `vmlinux-arm64.bin` (and a legacy `vmlinux.bin` for amd64), and pushes the same files to GCS under `gs://$GCP_BUCKET_NAME/kernels/<version_name>/`.
+1. Pick the branch and run the **Manual Build & Release** workflow (Actions → Manual Build & Release → Run workflow → branch). The workflow takes no inputs.
+2. Every kernel version in `kernel_versions.txt` is built for both `amd64` and `arm64` in parallel.
+3. A single GitHub release is created per run, tagged with calver `YYYY.MM.DD` (with a `.N` suffix for additional runs the same day). The release contains every binary for that commit:
 
-### Workflow inputs
+   ```
+   vmlinux-<version>-amd64.bin
+   vmlinux-<version>-arm64.bin
+   vmlinux-<version>.bin           # legacy (= amd64) for backwards compat
+   ```
 
-- `kernel_versions` (optional): comma-separated kernel versions. Defaults to all versions in `kernel_versions.txt`.
-- `build_amd64` / `build_arm64` (optional, default `true`): which architectures to build.
+4. The same binaries are uploaded to GCS at `gs://$GCP_BUCKET_NAME/kernels/vmlinux-<version>/<arch>/vmlinux.bin`.
 
 ## New kernel in E2B's infra
 _Note: these steps should give you a new kernel on your self-hosted E2B using https://github.com/e2b-dev/infra_
 
-- Run the release workflow to publish the new kernel build.
-- Update `DefaultKernelVersion` in [packages/api/internal/cfg/model.go](https://github.com/e2b-dev/infra/blob/main/packages/api/internal/cfg/model.go) to the new `vmlinux-<version>_<hash>` name.
+- Run the release workflow on the branch with the new config/patch.
+- Update `DefaultKernelVersion` in [packages/api/internal/cfg/model.go](https://github.com/e2b-dev/infra/blob/main/packages/api/internal/cfg/model.go) if you changed the kernel version.
 - Build and deploy `api`.
 
 ## Architecture naming
