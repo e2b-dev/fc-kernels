@@ -62,6 +62,26 @@ jobs:
           path: ./builds
           retention-days: 7
 
+  # Aggregator with the exact name required by the `Main` ruleset on this
+  # repo. Per-(version, arch) jobs above run in parallel; this single check
+  # gates the whole arch on their combined success.
+  build-status:
+    needs: build
+    if: always()
+    name: Build kernels (${{ matrix.target_arch }})
+    strategy:
+      matrix:
+        target_arch: [x86_64, arm64]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - run: |
+          if [[ "${{ needs.build.result }}" != "success" ]]; then
+            echo "build matrix did not succeed (result=${{ needs.build.result }})"
+            exit 1
+          fi
+
   publish:
     needs: build
     if: github.event_name == 'workflow_dispatch'
