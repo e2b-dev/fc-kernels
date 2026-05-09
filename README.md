@@ -25,11 +25,14 @@ This project builds custom Linux kernels for Firecracker microVMs from the same 
 
    Output: `builds/vmlinux-<version>/<arch>/vmlinux.bin` where `<arch>` is `amd64` or `arm64` (Go/OCI convention). For x86_64 a legacy copy is also placed at `builds/vmlinux-<version>/vmlinux.bin`.
 
-## Releasing
+## CI / Releasing
 
-1. Pick the branch and run the **Manual Build & Release** workflow (Actions → Manual Build & Release → Run workflow → branch). The workflow takes no inputs.
-2. Every kernel version in `kernel_versions.txt` is built for both `amd64` and `arm64` in parallel.
-3. A single GitHub release is created per run, tagged with calver `YYYY.MM.DD` (with a `.N` suffix for additional runs the same day). The release contains every binary for that commit:
+The **Build & Release** workflow runs in two modes:
+
+- **On every pull request**: builds every kernel in `kernel_versions.txt` for `amd64` and `arm64` in parallel and uploads the binaries as workflow artifacts (downloadable from the PR's checks tab) so reviewers can inspect them. No release or GCS upload happens.
+- **Manually (workflow_dispatch)**: pick the branch in the GitHub UI and run. It does the same build as a PR and additionally creates a GitHub release tagged `YYYY.MM.DD` (with a `.N` suffix for additional runs the same day) containing every binary, and uploads them to GCS.
+
+Release asset naming for that commit:
 
    ```
    vmlinux-<version>-amd64.bin
