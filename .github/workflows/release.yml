@@ -9,28 +9,44 @@ permissions:
   id-token: write
 
 jobs:
+  matrix:
+    runs-on: ubuntu-24.04
+    outputs:
+      build_matrix: ${{ steps.gen.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: gen
+        run: |
+          python3 - >> "$GITHUB_OUTPUT" <<'PY'
+          import json
+          versions = []
+          for line in open("kernel_versions.txt").read().splitlines():
+              v = line.split("#", 1)[0].strip()
+              if v:
+                  versions.append(v)
+          include = []
+          for v in versions:
+              include.append({"version": v, "arch": "amd64", "target_arch": "x86_64", "runner": "ubuntu-24.04"})
+              include.append({"version": v, "arch": "arm64", "target_arch": "arm64", "runner": "ubuntu-24.04-arm"})
+          print(f"matrix={json.dumps({'include': include})}")
+          PY
+
   build:
-    name: Build kernels (${{ matrix.arch }})
+    needs: matrix
+    name: Build ${{ matrix.version }} (${{ matrix.arch }})
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            target_arch: x86_64
-            runner: ubuntu-24.04
-          - arch: arm64
-            target_arch: arm64
-            runner: ubuntu-24.04-arm
+      matrix: ${{ fromJson(needs.matrix.outputs.build_matrix) }}
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build kernels
-        run: sudo TARGET_ARCH=${{ matrix.target_arch }} ./build.sh
+      - name: Build kernel
+        run: sudo ./build.sh "${{ matrix.version }}" "${{ matrix.target_arch }}"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: kernels-${{ matrix.arch }}
+          name: kernel-${{ matrix.version }}-${{ matrix.arch }}
           path: ./builds
           retention-days: 7
 

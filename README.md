@@ -29,7 +29,7 @@ This project builds custom Linux kernels for Firecracker microVMs from the same 
 
 The **Build & Release** workflow runs in two modes:
 
-- **On every pull request**: builds every kernel in `kernel_versions.txt` for `amd64` and `arm64` in parallel and uploads the binaries as workflow artifacts (downloadable from the PR's checks tab) so reviewers can inspect them. No release or GCS upload happens.
+- **On every pull request**: builds every (kernel version × arch) combination from `kernel_versions.txt` in parallel (one runner per pair) and uploads the binaries as workflow artifacts (downloadable from the PR's checks tab) so reviewers can inspect them. No release or GCS upload happens.
 - **Manually (workflow_dispatch)**: pick the branch in the GitHub UI and run. It does the same build as a PR and additionally creates a GitHub release tagged `YYYY.MM.DD` (with a `.N` suffix for additional runs the same day) containing every binary, and uploads them to GCS.
 
 Release asset naming for that commit:
