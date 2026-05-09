@@ -1,0 +1,156 @@
+name: Build & Release
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      build_matrix: ${{ steps.gen.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: gen
+        run: |
+          python3 - >> "$GITHUB_OUTPUT" <<'PY'
+          import json
+          import re
+          import sys
+          VERSION_RE = re.compile(r"^[0-9]+(?:\.[0-9]+)+$")
+          versions = []
+          for line in open("kernel_versions.txt").read().splitlines():
+              v = line.split("#", 1)[0].strip()
+              if not v:
+                  continue
+              if not VERSION_RE.match(v):
+                  sys.exit(f"::error::invalid kernel version in kernel_versions.txt: {v!r}")
+              versions.append(v)
+          include = []
+          for v in versions:
+              include.append({"version": v, "arch": "amd64", "target_arch": "x86_64", "runner": "ubuntu-24.04"})
+              include.append({"version": v, "arch": "arm64", "target_arch": "arm64", "runner": "ubuntu-24.04-arm"})
+          print(f"matrix={json.dumps({'include': include})}")
+          PY
+
+  build:
+    needs: matrix
+    name: Build ${{ matrix.version }} (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.matrix.outputs.build_matrix) }}
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build kernel
+        env:
+          KERNEL_VERSION: ${{ matrix.version }}
+          KERNEL_TARGET_ARCH: ${{ matrix.target_arch }}
+        run: sudo ./build.sh "$KERNEL_VERSION" "$KERNEL_TARGET_ARCH"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kernel-${{ matrix.version }}-${{ matrix.arch }}
+          path: ./builds
+          retention-days: 7
+
+  # Aggregator with the exact name required by the `Main` ruleset on this
+  # repo. Per-(version, arch) jobs above run in parallel; this single check
+  # gates the whole arch on their combined success.
+  build-status:
+    needs: build
+    if: always()
+    name: Build kernels (${{ matrix.target_arch }})
+    strategy:
+      matrix:
+        target_arch: [x86_64, arm64]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - run: |
+          if [[ "${{ needs.build.result }}" != "success" ]]; then
+            echo "build matrix did not succeed (result=${{ needs.build.result }})"
+            exit 1
+          fi
+
+  publish:
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: ./builds
+          merge-multiple: true
+
+      - name: Prepare release assets
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          for dir in ./builds/vmlinux-*/; do
+            name=$(basename "$dir")
+            [ -f "$dir/amd64/vmlinux.bin" ] && cp "$dir/amd64/vmlinux.bin" "release-assets/${name}-amd64.bin"
+            [ -f "$dir/arm64/vmlinux.bin" ] && cp "$dir/arm64/vmlinux.bin" "release-assets/${name}-arm64.bin"
+            # Legacy non-arch-suffixed asset (= amd64) for backwards compat.
+            [ -f "$dir/vmlinux.bin" ] && cp "$dir/vmlinux.bin" "release-assets/${name}.bin"
+          done
+          ls -la release-assets/
+
+      - name: Pick calver tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          base="$(date -u +%Y.%m.%d)"
+          tag="$base"
+          n=0
+          while gh release view "$tag" >/dev/null 2>&1 \
+                || git rev-parse "refs/tags/$tag" >/dev/null 2>&1 \
+                || git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; do
+            n=$((n + 1))
+            tag="${base}.${n}"
+          done
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.tag.outputs.tag }}"
+          git push origin "${{ steps.tag.outputs.tag }}"
+          gh release create "${{ steps.tag.outputs.tag }}" \
+            --title "Kernels ${{ steps.tag.outputs.tag }}" \
+            --notes "Built from commit ${{ github.sha }} on ${{ github.ref_name }}" \
+            ./release-assets/*
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - uses: google-github-actions/upload-cloud-storage@v2
+        with:
+          path: ./builds
+          destination: ${{ vars.GCP_BUCKET_NAME }}/kernels
+          gzip: false
+          parent: false
