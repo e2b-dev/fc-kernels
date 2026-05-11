@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Uploads vmlinux-*-{amd64,arm64}.bin assets from a fc-kernels GitHub release
 # to GCS at:
-#   gs://<bucket>/vmlinux-<version>-<short_hash>/<arch>/vmlinux.bin
+#   gs://<bucket>/vmlinux-<version>_<short_hash>/<arch>/vmlinux.bin
 #
 # Existing objects are never overwritten. The legacy non-arch release asset
 # (vmlinux-<version>.bin) is intentionally skipped — under a fresh
@@ -93,7 +93,7 @@ for asset in "${ASSETS[@]}"; do
   fi
   version="${BASH_REMATCH[1]}"
   arch="${BASH_REMATCH[2]}"
-  dst="${BUCKET_URI}/vmlinux-${version}-${SHORT_HASH}/${arch}/vmlinux.bin"
+  dst="${BUCKET_URI}/vmlinux-${version}_${SHORT_HASH}/${arch}/vmlinux.bin"
 
   if gcloud storage ls "$dst" >/dev/null 2>&1; then
     echo "  EXISTS  $dst"
