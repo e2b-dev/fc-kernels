@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Uploads vmlinux-*-{amd64,arm64}.bin assets from a fc-kernels GitHub release
 # to GCS at:
-#   gs://<bucket>/vmlinux-<version>-<short_hash>/<arch>/vmlinux.bin
+#   gs://<bucket>/vmlinux-<version>_<short_hash>/<arch>/vmlinux.bin
 #
 # Existing objects are never overwritten. The legacy non-arch release asset
 # (vmlinux-<version>.bin) is intentionally skipped — under a fresh
@@ -73,7 +73,10 @@ echo "Release: $RELEASE_TAG (commit ${SHORT_HASH})"
 echo "Target:  ${BUCKET_URI}"
 $DRY_RUN && echo "Mode:    dry-run"
 
-mapfile -t ASSETS < <(gh release view "$RELEASE_TAG" --repo "$REPO" --json assets \
+ASSETS=()
+while IFS= read -r line || [[ -n "$line" ]]; do
+  [[ -n "$line" ]] && ASSETS+=("$line")
+done < <(gh release view "$RELEASE_TAG" --repo "$REPO" --json assets \
   --jq '.assets[] | select(.name | test("^vmlinux-.*\\.bin$")) | .name')
 
 if [[ "${#ASSETS[@]}" -eq 0 ]]; then
@@ -93,7 +96,7 @@ for asset in "${ASSETS[@]}"; do
   fi
   version="${BASH_REMATCH[1]}"
   arch="${BASH_REMATCH[2]}"
-  dst="${BUCKET_URI}/vmlinux-${version}-${SHORT_HASH}/${arch}/vmlinux.bin"
+  dst="${BUCKET_URI}/vmlinux-${version}_${SHORT_HASH}/${arch}/vmlinux.bin"
 
   if gcloud storage ls "$dst" >/dev/null 2>&1; then
     echo "  EXISTS  $dst"
