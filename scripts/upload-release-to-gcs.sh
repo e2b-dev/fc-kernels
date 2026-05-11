@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Uploads vmlinux-*.bin assets from a fc-kernels GitHub release to GCS.
-#
-# Finds the release that was built from the given commit hash and uploads each
-# asset to:
+# Uploads vmlinux-*-{amd64,arm64}.bin assets from a fc-kernels GitHub release
+# to GCS at:
 #   gs://<bucket>/vmlinux-<version>-<short_hash>/<arch>/vmlinux.bin
-#   gs://<bucket>/vmlinux-<version>-<short_hash>/vmlinux.bin       (legacy = amd64)
 #
-# Existing objects are never overwritten.
+# Existing objects are never overwritten. The legacy non-arch release asset
+# (vmlinux-<version>.bin) is intentionally skipped — under a fresh
+# hash-suffixed version name there is no pre-existing flat layout to be
+# backwards-compatible with.
 #
 # Usage:
 #   ./scripts/upload-release-to-gcs.sh --hash <hash> --bucket <bucket> [--dry-run] [--repo <repo>]
@@ -87,17 +87,13 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 uploaded=0
 skipped=0
 for asset in "${ASSETS[@]}"; do
-  if [[ "$asset" =~ ^vmlinux-(.+)-(amd64|arm64)\.bin$ ]]; then
-    version="${BASH_REMATCH[1]}"
-    arch="${BASH_REMATCH[2]}"
-    dst="${BUCKET_URI}/vmlinux-${version}-${SHORT_HASH}/${arch}/vmlinux.bin"
-  elif [[ "$asset" =~ ^vmlinux-(.+)\.bin$ ]]; then
-    version="${BASH_REMATCH[1]}"
-    dst="${BUCKET_URI}/vmlinux-${version}-${SHORT_HASH}/vmlinux.bin"
-  else
-    echo "  SKIP    $asset (unrecognized name)"
+  if [[ ! "$asset" =~ ^vmlinux-(.+)-(amd64|arm64)\.bin$ ]]; then
+    # Legacy non-arch release asset or unrecognized name — not uploaded.
     continue
   fi
+  version="${BASH_REMATCH[1]}"
+  arch="${BASH_REMATCH[2]}"
+  dst="${BUCKET_URI}/vmlinux-${version}-${SHORT_HASH}/${arch}/vmlinux.bin"
 
   if gcloud storage ls "$dst" >/dev/null 2>&1; then
     echo "  EXISTS  $dst"
