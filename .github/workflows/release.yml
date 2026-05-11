@@ -88,7 +88,8 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-      id-token: write
+    outputs:
+      commit_hash: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -143,14 +144,35 @@ jobs:
             --notes "Built from commit ${{ github.sha }} on ${{ github.ref_name }}" \
             ./release-assets/*
 
+  deploy:
+    needs: publish
+    if: github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [staging, juliett, foxtrot]
+    runs-on: ubuntu-24.04
+    environment: ${{ matrix.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
       - uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
 
-      - uses: google-github-actions/upload-cloud-storage@v2
-        with:
-          path: ./builds
-          destination: ${{ vars.GCP_BUCKET_NAME }}/kernels
-          gzip: false
-          parent: false
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Upload release to GCS
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GCP_BUCKET_NAME: ${{ vars.GCP_BUCKET_NAME }}
+        run: |
+          ./scripts/upload-release-to-gcs.sh \
+            --hash "${{ needs.publish.outputs.commit_hash }}" \
+            --bucket "${GCP_BUCKET_NAME}/kernels" \
+            --repo "${{ github.repository }}"

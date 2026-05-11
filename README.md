@@ -40,7 +40,7 @@ Release asset naming for that commit:
    vmlinux-<version>.bin           # legacy (= amd64) for backwards compat
    ```
 
-4. The same binaries are uploaded to GCS at `gs://$GCP_BUCKET_NAME/kernels/vmlinux-<version>/<arch>/vmlinux.bin`.
+4. The arch-specific binaries are uploaded to each deploy environment's GCS bucket at `gs://$GCP_BUCKET_NAME/kernels/vmlinux-<version>-<short_hash>/<arch>/vmlinux.bin`. Deploy environments: `staging`, `juliett`, `foxtrot`. To upload an existing release to a bucket manually, run `./scripts/upload-release-to-gcs.sh --hash <commit_hash> --bucket <bucket>/kernels` (add `--dry-run` to preview). Existing objects are never overwritten.
 
 ## New kernel in E2B's infra
 _Note: these steps should give you a new kernel on your self-hosted E2B using https://github.com/e2b-dev/infra_
