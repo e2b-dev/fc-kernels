@@ -74,7 +74,7 @@ echo "Target:  ${BUCKET_URI}"
 $DRY_RUN && echo "Mode:    dry-run"
 
 ASSETS=()
-while IFS= read -r line; do
+while IFS= read -r line || [[ -n "$line" ]]; do
   [[ -n "$line" ]] && ASSETS+=("$line")
 done < <(gh release view "$RELEASE_TAG" --repo "$REPO" --json assets \
   --jq '.assets[] | select(.name | test("^vmlinux-.*\\.bin$")) | .name')
