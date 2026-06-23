@@ -83,7 +83,7 @@ jobs:
           fi
 
   publish:
-    needs: build
+    needs: [build]
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     permissions:
@@ -108,6 +108,9 @@ jobs:
             name=$(basename "$dir")
             [ -f "$dir/amd64/vmlinux.bin" ] && cp "$dir/amd64/vmlinux.bin" "release-assets/${name}-amd64.bin"
             [ -f "$dir/arm64/vmlinux.bin" ] && cp "$dir/arm64/vmlinux.bin" "release-assets/${name}-arm64.bin"
+            # DWARF debug companions (present when the config builds with debug info).
+            [ -f "$dir/amd64/vmlinux.debug" ] && cp "$dir/amd64/vmlinux.debug" "release-assets/${name}-amd64.debug"
+            [ -f "$dir/arm64/vmlinux.debug" ] && cp "$dir/arm64/vmlinux.debug" "release-assets/${name}-arm64.debug"
             # Legacy non-arch-suffixed asset (= amd64) for backwards compat.
             [ -f "$dir/vmlinux.bin" ] && cp "$dir/vmlinux.bin" "release-assets/${name}.bin"
           done
