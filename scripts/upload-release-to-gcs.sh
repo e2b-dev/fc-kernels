@@ -77,7 +77,7 @@ ASSETS=()
 while IFS= read -r line || [[ -n "$line" ]]; do
   [[ -n "$line" ]] && ASSETS+=("$line")
 done < <(gh release view "$RELEASE_TAG" --repo "$REPO" --json assets \
-  --jq '.assets[] | select(.name | test("^vmlinux-.*\\.bin$")) | .name')
+  --jq '.assets[] | select(.name | test("^vmlinux-.*\\.(bin|debug)$")) | .name')
 
 if [[ "${#ASSETS[@]}" -eq 0 ]]; then
   echo "ERROR: release $RELEASE_TAG has no vmlinux-*.bin assets" >&2
@@ -90,13 +90,19 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 uploaded=0
 skipped=0
 for asset in "${ASSETS[@]}"; do
-  if [[ ! "$asset" =~ ^vmlinux-(.+)-(amd64|arm64)\.bin$ ]]; then
+  if [[ "$asset" =~ ^vmlinux-(.+)-(amd64|arm64)\.bin$ ]]; then
+    version="${BASH_REMATCH[1]}"
+    arch="${BASH_REMATCH[2]}"
+    dst="${BUCKET_URI}/vmlinux-${version}_${SHORT_HASH}/${arch}/vmlinux.bin"
+  elif [[ "$asset" =~ ^vmlinux-(.+)-(amd64|arm64)\.debug$ ]]; then
+    # DWARF debug companion for the boot image. Fetched only when debugging.
+    version="${BASH_REMATCH[1]}"
+    arch="${BASH_REMATCH[2]}"
+    dst="${BUCKET_URI}/vmlinux-${version}_${SHORT_HASH}/${arch}/vmlinux.debug"
+  else
     # Legacy non-arch release asset or unrecognized name — not uploaded.
     continue
   fi
-  version="${BASH_REMATCH[1]}"
-  arch="${BASH_REMATCH[2]}"
-  dst="${BUCKET_URI}/vmlinux-${version}_${SHORT_HASH}/${arch}/vmlinux.bin"
 
   if gcloud storage ls "$dst" >/dev/null 2>&1; then
     echo "  EXISTS  $dst"
