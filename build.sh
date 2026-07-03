@@ -25,7 +25,7 @@ normalize_arch() {
 install_dependencies() {
   local target_arch="$1"
   local packages=(
-    bc binutils bison busybox-static cpio curl flex gcc libelf-dev libssl-dev make patch squashfs-tools tree
+    bc binutils bison busybox-static cpio curl dwarves flex gcc libelf-dev libssl-dev make patch squashfs-tools tree
   )
 
   [[ "$target_arch" == "arm64" && "$HOST_ARCH" != "aarch64" ]] && packages+=( gcc-aarch64-linux-gnu )
