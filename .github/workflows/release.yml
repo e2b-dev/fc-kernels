@@ -153,7 +153,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        environment: [staging, juliett, foxtrot]
+        environment: [staging, juliett, foxtrot, tango]
     runs-on: ubuntu-24.04
     environment: ${{ matrix.environment }}
     permissions:
