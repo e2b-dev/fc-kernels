@@ -179,3 +179,59 @@ jobs:
             --hash "${{ needs.publish.outputs.commit_hash }}" \
             --bucket "${GCP_BUCKET_NAME}/kernels" \
             --repo "${{ github.repository }}"
+
+  # Publish to the public e2b-artifact-binaries bucket (e2b-artifacts
+  # project), which anonymous consumers fetch from — the replacement for the
+  # old manual upload to e2b-prod-public-builds. Uses the shared github-worker
+  # publish identity (same pattern as belt/infra publish.yml), wired via the
+  # E2B_ARTIFACTS_* repo variables and allowlisted in the terragrunt repo
+  # (gcp/e2b-artifacts/_global/iam/github-worker). The SA is
+  # storage.objectCreator-only, so published objects are immutable; the upload
+  # script skips objects that already exist, making re-runs safe.
+  deploy-public:
+    needs: publish
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.E2B_ARTIFACTS_WIF_PROVIDER }}
+          service_account: ${{ vars.E2B_ARTIFACTS_PUBLISH_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Upload release to public GCS bucket
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./scripts/upload-release-to-gcs.sh \
+            --hash "${{ needs.publish.outputs.commit_hash }}" \
+            --bucket "e2b-artifact-binaries/kernels" \
+            --repo "${{ github.repository }}"
+
+      # TRANSITIONAL dual-publish: also refresh the legacy
+      # e2b-prod-public-builds bucket via the old repo-specific WIF identity
+      # (managed by terraform/ in this repo) until every consumer has moved
+      # to e2b-artifact-binaries. Remove these two steps (and destroy
+      # terraform/) once the transition is complete. Auth must come after
+      # the new-bucket upload: each auth step overwrites the job's Google
+      # credentials.
+      - name: Authenticate to legacy bucket
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Upload release to legacy public GCS bucket
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./scripts/upload-release-to-gcs.sh \
+            --hash "${{ needs.publish.outputs.commit_hash }}" \
+            --bucket "e2b-prod-public-builds/kernels" \
+            --repo "${{ github.repository }}"
