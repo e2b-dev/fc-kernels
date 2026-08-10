@@ -1,4 +1,8 @@
-# fc-kernels
+# fc-kernels (archived)
+
+| :warning: WARNING                                                                                                                                       |
+|:--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| This repository is archived. Kernels contributions are moved to the [e2b-dev/infra repository](https://github.com/e2b-dev/infra/tree/main/firecracker). |
 
 ## Overview
 
